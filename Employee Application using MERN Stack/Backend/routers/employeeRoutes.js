@@ -1,53 +1,57 @@
-const express = require('express');
-const Employee = require('../models/Employee');
-const { authMiddleware, adminMiddleware } = require('../middleware/authMiddleware');
-const router = express.Router();
+import express from "express";
+import employeeModel from "../models/employeeModel.js";
+import jwt from "jsonwebtoken";
 
-// Read all Employees
-router.get('/', authMiddleware, async (req, res) => {
+const employeeRouter = express.Router();
+employeeRouter.use(express.json());
+
+function verifyToken(req, res, next) {
+  let token = req.headers.token;
   try {
-    const employees = await Employee.find();
-    res.json(employees);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    if (!token) throw "Unauthorized access";
+    let payload = jwt.verify(token, process.env.jwt);
+    if (!payload) throw "Unauthorized access";
+    next();
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+employeeRouter.get("/", async (req, res) => {
+  try {
+    var data = await employeeModel.find();
+    res.status(200).send(data);
+  } catch (error) {
+    res.send("Unable to find Data");
   }
 });
 
-// Create an Employee (Admin only)
-router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
-  const { name, email, position, salary } = req.body;
-
+employeeRouter.post("/add", verifyToken, async (req, res) => {
   try {
-    const newEmployee = new Employee({ name, email, position, salary });
-    await newEmployee.save();
-    res.json(newEmployee);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    var item = req.body;
+    var data = await employeeModel(item).save();
+    res.status(200).send({ message: "Data added" });
+  } catch (error) {
+    res.send("Could not add data");
   }
 });
 
-// Update an Employee (Admin only)
-router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
-  const { name, email, position, salary } = req.body;
-
+employeeRouter.delete("/delete/:id", verifyToken, async (req, res) => {
   try {
-    const updatedEmployee = await Employee.findByIdAndUpdate(req.params.id, { name, email, position, salary }, { new: true });
-    if (!updatedEmployee) return res.status(404).json({ message: 'Employee not found' });
-    res.json(updatedEmployee);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    await employeeModel.findByIdAndDelete(req.params.id);
+    res.status(200).send("Data deleted");
+  } catch (error) {
+    res.send("Could not delete data");
   }
 });
 
-// Delete an Employee (Admin only)
-router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
+employeeRouter.put("/edit/:id", verifyToken, async (req, res) => {
   try {
-    const employee = await Employee.findByIdAndDelete(req.params.id);
-    if (!employee) return res.status(404).json({ message: 'Employee not found' });
-    res.json({ message: 'Employee deleted' });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    await employeeModel.findByIdAndUpdate(req.params.id, req.body);
+    res.status(200).send("Data updated successfully");
+  } catch (error) {
+    res.send(error);
   }
 });
 
-module.exports = router;
+export default employeeRouter;
